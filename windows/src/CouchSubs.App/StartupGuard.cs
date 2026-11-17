@@ -17,7 +17,7 @@ internal static class StartupGuard
     static bool Turkish => CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "tr";
 
     static string LogPath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CouchSubs", "hata.log");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CouchSubsDev", "hata.log");
 
     /// <summary>
     /// deps.json'da listelenen ama klasörde olmayan DLL'ler. Antivirüs bir dosyayı karantinaya alınca .NET açılışta

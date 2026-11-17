@@ -380,8 +380,50 @@ public sealed class AiTranslator : ITextTranslator, IOnlineTranslator
     public static readonly TimeSpan LocalTestTimeout = TimeSpan.FromSeconds(90);
 
     // Kısa zaman aşımı: altyazı birkaç saniye ekranda kalır, geç gelen çeviri işe yaramaz.
-    private static readonly Lazy<HttpClient> SharedClient = new(() => new HttpClient { Timeout = AiTranslator.Timeout });
-    private static readonly Lazy<HttpClient> LocalClient = new(() => new HttpClient { Timeout = LocalTimeout });
+    private static readonly Lazy<HttpClient> SharedClient = new(() => WarmClient(AiTranslator.Timeout));
+
+    /// <summary>
+    /// CouchSubs Dev: bulut bağlantısı açık tutulur. Varsayılan istemci boşta kalan bağlantıyı 1 dakikada kapatır; uzun
+    /// sessizlikten sonraki ilk satır TLS el sıkışmasını yeniden yaşar (~0,2-0,3 sn). HTTP/2 canlı tutma pingleri ve uzun
+    /// boşta kalma süresi bağlantıyı hazır tutar.
+    /// </summary>
+    private static HttpClient WarmClient(TimeSpan timeout)
+    {
+        var handler = new SocketsHttpHandler
+        {
+            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(15),
+            PooledConnectionLifetime = TimeSpan.FromMinutes(30),
+            KeepAlivePingDelay = TimeSpan.FromSeconds(20),
+            KeepAlivePingTimeout = TimeSpan.FromSeconds(10),
+            KeepAlivePingPolicy = HttpKeepAlivePingPolicy.Always,
+            ConnectTimeout = TimeSpan.FromSeconds(4),
+        };
+        return new HttpClient(handler)
+        {
+            Timeout = timeout,
+            DefaultRequestVersion = System.Net.HttpVersion.Version20,
+            DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower,
+        };
+    }
+
+    /// <summary>Hizmetin sunucusuna bağlantıyı önceden kurar (yanıt önemsizdir; yalnız TLS bağlantısı hazırlanır).</summary>
+    private static void Warm(HttpClient http, AiProvider provider)
+    {
+        var url = provider switch
+        {
+            AiProvider.Gemini => "https://generativelanguage.googleapis.com/",
+            AiProvider.OpenAi => "https://api.openai.com/",
+            AiProvider.Claude => "https://api.anthropic.com/",
+            _ => null,
+        };
+        if (url is null) return;
+        _ = Task.Run(async () =>
+        {
+            try { using var _ = await http.SendAsync(new HttpRequestMessage(HttpMethod.Head, url)).ConfigureAwait(false); }
+            catch (Exception) { }
+        });
+    }
+    private static readonly Lazy<HttpClient> LocalClient = new(() => WarmClient(LocalTimeout));
     private static readonly Lazy<HttpClient> LocalTestClient = new(() => new HttpClient { Timeout = LocalTestTimeout });
 
     /// <summary>Hizmete uygun zaman aşımıyla paylaşılan istemci.</summary>
@@ -429,6 +471,7 @@ public sealed class AiTranslator : ITextTranslator, IOnlineTranslator
         _key = key.Trim();
         _fallback = fallback;
         _http = http ?? ClientFor(provider);
+        if (http is null && !provider.IsLocal()) Warm(_http, provider);
         _screenHttp = http ?? (provider.IsLocal() ? LocalTestClient.Value : ScreenClient.Value);
         _cache = cache ?? new TranslationCache();
         _budget = budget ?? RequestBudget.Shared(provider, Model);

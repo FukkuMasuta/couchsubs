@@ -290,7 +290,7 @@ public sealed class GlossaryStore
 
     /// <summary>%LOCALAPPDATA%\CouchSubs\glossary</summary>
     public static string UserDirectory { get; } =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CouchSubs", "glossary");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CouchSubsDev", "glossary");
 
     /// <summary>Yalnız uygulamayla gelen sözlük (testler).</summary>
     public static GlossaryStore BuiltInOnly() => new(null);

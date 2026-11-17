@@ -22,9 +22,14 @@ internal sealed class Updater : IUpdater
 
     public async Task<string?> CheckAsync()
     {
+        // CouchSubs Dev: ayrı deneme kopyası; asıl sürümün güncellemesiyle üzerine yazılmasın.
+        await Task.CompletedTask;
+        return null;
+#pragma warning disable CS0162
         if (!manager.IsInstalled) return await LatestTagAsync();
         pending = await manager.CheckForUpdatesAsync();
         return pending?.TargetFullRelease.Version.ToString();
+#pragma warning restore CS0162
     }
 
     public async Task InstallAsync(IProgress<double> progress)
